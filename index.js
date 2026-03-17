@@ -6,7 +6,7 @@ app.use(express.json());
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
-// простая дедупликация (в памяти)
+// дедупликация (in-memory)
 const processedEvents = new Set();
 
 app.post("/adyen/webhook", async (req, res) => {
@@ -22,7 +22,7 @@ app.post("/adyen/webhook", async (req, res) => {
 
             // защита от дублей
             if (processedEvents.has(key)) {
-                console.log("Duplicate event skipped:", key);
+                console.log("Duplicate skipped:", key);
                 continue;
             }
 
@@ -36,7 +36,9 @@ app.post("/adyen/webhook", async (req, res) => {
         res.status(200).send("[accepted]");
     } catch (err) {
         console.error("Webhook error:", err);
-        res.status(200).send("[accepted]"); // важно для Adyen
+
+        // важно всегда отвечать 200 для Adyen
+        res.status(200).send("[accepted]");
     }
 });
 
@@ -51,6 +53,8 @@ async function sendToSlack(data) {
 
     const cardSummary = data.additionalData?.cardSummary || "****";
     const cardCountry = data.additionalData?.cardCountry || "N/A";
+
+    const cardBin = data.additionalData?.cardBin || "N/A";
 
     const message = {
         text: "🚨 Fraud Alert",
@@ -83,7 +87,7 @@ async function sendToSlack(data) {
                     },
                     {
                         type: "mrkdwn",
-                        text: `*Card:*\n**** ${cardSummary}`
+                        text: `*Card:*\n${cardBin} **** ${cardSummary}`
                     },
                     {
                         type: "mrkdwn",
@@ -107,26 +111,19 @@ async function sendToSlack(data) {
         ]
     };
 
-    await fetch(SLACK_WEBHOOK_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(message)
-    });
+    try {
+        await fetch(SLACK_WEBHOOK_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(message)
+        });
 
-    console.log("Sent to Slack:", data.pspReference);
-}
-
-    await fetch(SLACK_WEBHOOK_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(message)
-    });
-
-    console.log("Sent to Slack:", data.pspReference);
+        console.log("Sent to Slack:", data.pspReference);
+    } catch (err) {
+        console.error("Slack send error:", err);
+    }
 }
 
 const PORT = process.env.PORT || 8080;

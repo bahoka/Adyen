@@ -41,16 +41,25 @@ app.post("/adyen/webhook", async (req, res) => {
 });
 
 async function sendToSlack(data) {
-    const adyenUrl = `https://ca-live.adyen.com/ca/ca/accounts/overview.shtml?pspReference=${data.pspReference}`;
+    const amount = data.amount
+        ? `${data.amount.value / 100} ${data.amount.currency}`
+        : "N/A";
+
+    const fraudReason = data.additionalData?.fraudReason || "N/A";
+
+    const merchantAccount = data.merchantAccountCode || "N/A";
+
+    const cardSummary = data.additionalData?.cardSummary || "****";
+    const cardCountry = data.additionalData?.cardCountry || "N/A";
 
     const message = {
         text: "🚨 Fraud Alert",
         blocks: [
             {
-                type: "section",
+                type: "header",
                 text: {
-                    type: "mrkdwn",
-                    text: "*🚨 Fraud Alert (Adyen Notification of Fraud)*"
+                    type: "plain_text",
+                    text: "🚨 Fraud Alert (Adyen)"
                 }
             },
             {
@@ -58,29 +67,56 @@ async function sendToSlack(data) {
                 fields: [
                     {
                         type: "mrkdwn",
-                        text: `*Order:*\n${data.merchantReference || "N/A"}`
+                        text: `*Merchant:*\n${merchantAccount}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*Order ID:*\n${data.merchantReference || "N/A"}`
                     },
                     {
                         type: "mrkdwn",
                         text: `*PSP Reference:*\n${data.pspReference}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*Amount:*\n${amount}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*Card:*\n**** ${cardSummary}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*Card Country:*\n${cardCountry}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*Fraud Reason:*\n${fraudReason}`
                     }
                 ]
             },
             {
-                type: "actions",
+                type: "context",
                 elements: [
                     {
-                        type: "button",
-                        text: {
-                            type: "plain_text",
-                            text: "Open in Adyen"
-                        },
-                        url: adyenUrl
+                        type: "mrkdwn",
+                        text: "⚠️ Recommended action: Review and consider refund to prevent potential chargeback"
                     }
                 ]
             }
         ]
     };
+
+    await fetch(SLACK_WEBHOOK_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(message)
+    });
+
+    console.log("Sent to Slack:", data.pspReference);
+}
 
     await fetch(SLACK_WEBHOOK_URL, {
         method: "POST",

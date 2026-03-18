@@ -79,7 +79,11 @@ async function sendToSlack(data) {
                     },
                     {
                         type: "mrkdwn",
-                        text: `*PSP Reference:*\n${data.pspReference}`
+                        text: `*Original PSP:*\n\`${data.originalReference || "N/A"}\``
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*Event PSP:*\n\`${data.pspReference}\``
                     },
                     {
                         type: "mrkdwn",
